@@ -1,14 +1,18 @@
-const API_URL_DISCOVER_MOVIES = 'https://api.themoviedb.org/3/discover/movie?api_key=bf7af8534242a2979c7554f3260e667f'
-const IMG_PATH = 'https://image.tmdb.org/t/p/w1280'
-const SEARCH_API = 'https://api.themoviedb.org/3/search/multi?api_key=bf7af8534242a2979c7554f3260e667f&&query='
-const searchBtn = document.getElementById("search"),
-    sidebar = document.getElementById("sidebar");
+const API_URL_DISCOVER_MOVIES = 'https://api.themoviedb.org/3/discover/movie?api_key=bf7af8534242a2979c7554f3260e667f',
+    API_URL_DISCOVER_TV_SHOWS = "https://api.themoviedb.org/3/discover/tv?api_key=bf7af8534242a2979c7554f3260e667f",
+    IMG_PATH = 'https://image.tmdb.org/t/p/w1280',
+    SEARCH_API = 'https://api.themoviedb.org/3/search/multi?api_key=bf7af8534242a2979c7554f3260e667f&&query=',
+    searchBtn = document.getElementById("search"),
+    sidebar = document.getElementById("sidebar"),
+    fullscreenSidebar = document.getElementById("fullScreenSidebar");
 let sidebarData = null;
-
+document.getElementById("form").addEventListener("submit", (event) => {
+    event.preventDefault()
+})
 
 function eventListeners() {
     document.addEventListener("click", clickEvent);
-    searchBtn.addEventListener("keyup", serachMovies)
+    searchBtn.addEventListener("keyup", searchMovies)
 }
 
 //Fetching Functions
@@ -17,11 +21,15 @@ async function getMovies(url, filter = "&sort_by=popularity.desc") {
     const res = await fetch(newURL)
     const data = await res.json()
     results = data.results;
-
-
-    showMovies(results)
+    return results;
 }
-
+async function getTvShows(url, filter = "&sort_by=popularity.desc") {
+    let newURL = url.concat(filter);
+    const res = await fetch(newURL)
+    const data = await res.json()
+    results = data.results;
+    return results;
+}
 async function getMovieDetails(id) {
     let detailsUrl = `https://api.themoviedb.org/3/movie/${id}?api_key=bf7af8534242a2979c7554f3260e667f&language=en-US`;
     let videoUrl = `https://api.themoviedb.org/3/movie/${id}/videos?api_key=bf7af8534242a2979c7554f3260e667f&language=en-US`
@@ -49,30 +57,86 @@ async function searchNGetMovies(word) {
 }
 
 //Other Functions
-function serachMovies() {
-    if (searchBtn.value !== "") {
+function searchMovies(e) {
+    if (e.key == "Enter") {
         searchNGetMovies(searchBtn.value).then(d => {
-            showMovies(d.results)
+            getMovieDetails(d.results[0].id).then(data => {
+                document.querySelectorAll(".contentCard").forEach(i => {
+                    i.remove();
+                });
+                showMovieDetails(data.details, "fullScreen");
+            })
         })
+
     } else {
-        getMovies(API_URL_DISCOVER_MOVIES)
+        if (searchBtn.value !== "") {
+            searchNGetMovies(searchBtn.value).then(d => {
+                showMovies(d.results);
+                showHide("hide", "miniNavbar");
+
+            })
+        } else {
+            getMovies(API_URL_DISCOVER_MOVIES).then(data => {
+                showMovies(data);
+                showHide("show", "miniNavbar")
+            })
+        }
     }
+}
+
+
+function showTVShows(content) {
+    console.log(content)
+    sidebarData = null;
+    showHide("hide", "fullScreenSidebar");
+    showHide("hide", "sidebar");
+    document.querySelectorAll(".contentCard").forEach(i => {
+        i.remove();
+    });
+    content.forEach((cnt) => {
+        const tvElement = document.createElement('div')
+        tvElement.classList.add(`contentCard`)
+        tvElement.classList.add(`tv`)
+        tvElement.id = cnt.id;
+
+        tvElement.innerHTML = `
+            <img src="${IMG_PATH + cnt.poster_path}" alt="${cnt.original_name}">
+            <div class="movie-info">
+          <h3>${cnt.original_name}</h3>
+          <span class="${getClassByRate(cnt.vote_average)}">${cnt.vote_average}</span>
+            </div>
+            <div class="overview">
+          <h3>Overview</h3>
+          ${cnt.overview}
+        </div>`
+        main.appendChild(tvElement)
+    })
 
 }
 
-function showMovies(content) {
-    sidebarData = null;
-    sidebarSH("h")
-    main.innerHTML = ''
-    // console.log(content)
-    content.forEach((cnt) => {
-        if (cnt.media_type !== "person" && cnt.media_type !== "tv") {
-            const movieElement = document.createElement('div')
-            movieElement.classList.add(`movie`)
-            movieElement.classList.add(`contentCard`)
-            movieElement.id = cnt.id;
 
-            movieElement.innerHTML = `
+function showMovies(content) {
+    if (content.length === 1) {
+        let mainItem = document.getElementsByClassName("contentCard")[0];
+        getMovieDetails(content[0].id).then(details => {
+            main.innerHTML = ''
+            showMovieDetails(details.details, "fullScreen");
+        })
+    } else {
+        sidebarData = null;
+        showHide("hide", "fullScreenSidebar");
+        showHide("hide", "sidebar");
+        document.querySelectorAll(".contentCard").forEach(i => {
+            i.remove();
+        });
+        content.forEach((cnt) => {
+            if (cnt.media_type !== "person" && cnt.media_type !== "tv") {
+                const movieElement = document.createElement('div')
+                movieElement.classList.add(`movie`)
+                movieElement.classList.add(`contentCard`)
+                movieElement.id = cnt.id;
+
+                movieElement.innerHTML = `
             <img src="${IMG_PATH + cnt.poster_path}" alt="${cnt.title}">
             <div class="movie-info">
           <h3>${cnt.title}</h3>
@@ -83,15 +147,15 @@ function showMovies(content) {
           ${cnt.overview}
         </div>
         `
-            main.appendChild(movieElement)
+                main.appendChild(movieElement);
 
-        } else if (cnt.media_type === "tv") {
-            const tvElement = document.createElement('div')
-            tvElement.classList.add(`contentCard`)
-            tvElement.classList.add(`tv`)
-            tvElement.id = cnt.id;
+            } else if (cnt.media_type === "tv") {
+                const tvElement = document.createElement('div')
+                tvElement.classList.add(`contentCard`)
+                tvElement.classList.add(`tv`)
+                tvElement.id = cnt.id;
 
-            tvElement.innerHTML = `
+                tvElement.innerHTML = `
             <img src="${IMG_PATH + cnt.poster_path}" alt="${cnt.original_name}">
             <div class="movie-info">
           <h3>${cnt.original_name}</h3>
@@ -100,38 +164,41 @@ function showMovies(content) {
             <div class="overview">
           <h3>Overview</h3>
           ${cnt.overview}
-        </div>
-        `
-            main.appendChild(tvElement)
-        } else if (cnt.media_type === "person") {
-            //Persons here
-        }
+        </div>`
+                main.appendChild(tvElement)
+            } else if (cnt.media_type === "person") {
+                //Persons here
+            }
 
-    })
+
+        })
+
+    }
 }
 
-function showMovieDetailes(movie) {
-    console.log(movie)
-    sidebar.innerHTML = "<div class=\"lds-facebook\"><div></div><div></div><div></div></div>"
-    let arr = [],
-        bud = "",
-        arr_pr_co = [];
+function showMovieDetails(movie, criteria = "sideBar") {
+    if (criteria === "sideBar") {
 
-    sidebar.style.display = "block"
-    movie.genres.forEach(data => {
-        arr.push(data.name)
-    })
-    movie.production_companies.forEach(data => {
-        arr_pr_co.push(data.name)
-    })
+        sidebar.innerHTML = "<div class=\"lds-facebook\"><div></div><div></div><div></div></div>"
+        let arr = [],
+            bud = "",
+            arr_pr_co = [];
 
-    if (movie.budget === 0) {
-        bud = "Not Provided"
-    } else {
-        bud = `${movie.budget} $`;
-    }
-    //    console.log(movie)
-    sidebar.innerHTML = ` 
+        sidebar.style.display = "block"
+        movie.genres.forEach(data => {
+            arr.push(data.name)
+        })
+        movie.production_companies.forEach(data => {
+            arr_pr_co.push(data.name)
+        })
+
+        if (movie.budget === 0) {
+            bud = "Not Provided"
+        } else {
+            bud = `${movie.budget} $`;
+        }
+        //    console.log(movie)
+        sidebar.innerHTML = ` 
   
       
        <div class="tooltip">
@@ -166,34 +233,102 @@ function showMovieDetailes(movie) {
         </div>
         <div class="sidebar-budget sidebar-info" id="sidebar-budget">
             <h4>Budget</h4>${bud}</div>
-        <div class="sidebar-videos sidebar-info">
-            <h4>Trailers and More</h4>
-            <!-- Videos here -->
+       <!-- <div class="sidebar-videos sidebar-info"><h4>Trailers and More</h4></div>  --> `
+
+        let list = document.getElementById("ulSidebar");
+        arr.forEach(item => {
+            let li = document.createElement("li");
+            li.textContent = item;
+            list.appendChild(li)
+        })
+        let list_production_companies = document.getElementById("ul-production-companies");
+        arr_pr_co.forEach(item => {
+            let li = document.createElement("li");
+            li.textContent = item;
+            list_production_companies.appendChild(li)
+        })
+        if (movie.tagline === "") {
+            document.getElementById("sidebar-tagline").style.display = "none";
+        }
+        if (bud == "Not Provided") {
+            document.querySelector("#sidebar-budget").style.display = "none";
+        }
+
+        setStickySideBar();
+    } else if (criteria === "fullScreen") {
+        showHide("hide", "miniNavbar")
+        let arr = [],
+            bud = "",
+            arr_pr_co = [];
+
+        movie.genres.forEach(data => {
+            arr.push(data.name)
+        })
+        movie.production_companies.forEach(data => {
+            arr_pr_co.push(data.name)
+        })
+
+        if (movie.budget === 0) {
+            bud = "Not Provided"
+        } else {
+            bud = `${movie.budget} $`;
+        }
+        fullscreenSidebar.innerHTML = ` 
+        <h3>${movie.title}</h3>
+        <div class="sidebar-image">
+            <img src = "${IMG_PATH + movie.poster_path}">
+
+        </div>
+        <div class="sidebar-content">
+            <div class="tagline sidebar-info" id="sidebar-tagline">
+                <h4>Tagline</h4><span>${movie.tagline}</span>
+            </div>
+            <div class="overview sidebar-info">
+                <h4>Overview</h4>${movie.overview}
+            </div>
+            <div class="production-companies sidebar-info">
+                <h4>Production Companies</h4>
+                <ul id = "ul-production-companies">
+                    
+                </ul>
+            </div>
+            <div class="genres sidebar-info">
+                <h4>Genres</h4>
+                <ul id = "ul-genres">
+                  
+                </ul>
+            </div>
+            <div class="sidebar-budget sidebar-info" id="sidebar-budget">
+                <h4>Budget</h4>
+                $${bud}
+            </div>
+            <!-- <div class="extras">
+
+        </div> -->
         </div>`
-
-    let list = document.getElementById("ulSidebar");
-    arr.forEach(item => {
-        let li = document.createElement("li");
-        li.textContent = item;
-        list.appendChild(li)
-    })
-    let list_production_companies = document.getElementById("ul-production-companies");
-    arr_pr_co.forEach(item => {
-        let li = document.createElement("li");
-        li.textContent = item;
-        list_production_companies.appendChild(li)
-    })
-    if (movie.tagline === "") {
-        document.getElementById("sidebar-tagline").style.display = "none";
+        let list = document.getElementById("ul-genres");
+        arr.forEach(item => {
+            let li = document.createElement("li");
+            li.textContent = item;
+            list.appendChild(li)
+        })
+        let list_production_companies = document.getElementById("ul-production-companies");
+        arr_pr_co.forEach(item => {
+            let li = document.createElement("li");
+            li.textContent = item;
+            list_production_companies.appendChild(li)
+        })
+        if (movie.tagline === "") {
+            showHide("hide", "sidebar-tagline");
+        }
+        if (bud == "Not Provided") {
+            showHide("hide", "sidebar-budget");
+        }
+        showHide("show", "fullScreenSidebar", "flex");
     }
-    if (bud == "Not Provided") {
-        document.querySelector("#sidebar-budget").style.display = "none";
-    }
-
-    setStickySideBar();
 }
 
-function showTVDetailes(tv) {
+function showTVDetails(tv) {
 
     let arr = [],
         bud = "",
@@ -210,7 +345,6 @@ function showTVDetailes(tv) {
         bud = `${tv.budget} $`;
     }
 
-    console.log(tv)
     sidebar.innerHTML = ` 
        <i class="fa fa-close sidebar-close-icon" style="font-size:24px"></i>
        <a href="${tv.homepage}" > <img src="${IMG_PATH + tv.poster_path}" alt="Picture"></a>
@@ -274,16 +408,16 @@ function clickEvent(e) {
     if (e.target.parentElement.classList.contains("contentCard")) {
         if (e.target.parentElement.classList.contains("movie")) {
             getMovieDetails(e.target.parentElement.id).then(data => {
-                showMovieDetailes(data.details);
+                showMovieDetails(data.details);
             })
         } else if (e.target.parentElement.classList.contains("tv")) {
             getTVDetails(e.target.parentElement.id).then(data => {
 
-                showTVDetailes(data);
+                showTVDetails(data);
             })
         }
-        e.target.parentElement.style.boxShadow = "rgba(46, 240, 240, 0.4) 5px 5px, rgba(46, 240, 240, 0.3) 10px 10px, rgba(46, 240, 240, 0.2) 15px 15px, rgba(46, 240, 240, 0.1) 20px 20px, rgba(240, 46, 170, 0.05) 25px 25px"
-        sidebarSH("s");
+        e.target.parentElement.style.boxShadow = "rgba(255, 240, 140, 0.4) 5px 5px, rgba(220, 240, 140, 0.4) 10px 10px"
+        showHide("show", "sidebar")
         if (sidebarData !== null) {
             document.getElementById(sidebarData).style.display = "block";
             document.getElementById(sidebarData).style.boxShadow = ""
@@ -296,6 +430,23 @@ function clickEvent(e) {
         document.getElementById("sidebar").style.display = "none";
         document.getElementById(sidebarData).style.boxShadow = "";
     }
+    //Swap between movies, shows and actors
+
+    if (e.target.classList.contains("title") === true) {
+        if (e.target.classList.contains("focus") === false) {
+            document.getElementsByClassName("focus")[0].classList.remove("focus");
+            e.target.classList.add("focus");
+            if (e.target.textContent === "Top Shows") {
+                getTvShows(API_URL_DISCOVER_TV_SHOWS).then(data => {
+                    showTVShows(data);
+                })
+            } else if (e.target.textContent === "Top Movies") {
+                getMovies(API_URL_DISCOVER_MOVIES).then(data => {
+                    showMovies(data);
+                })
+            }
+        }
+    }
 
 }
 
@@ -305,16 +456,22 @@ function setStickySideBar() {
     sidebar.style.top = `-${stickySidebarHeight}px`
 }
 
-function sidebarSH(SH) {
-    if (SH === "s") {
-        document.getElementById("sidebar").style.display = "block";
-    } else if (SH === "h") {
-        document.getElementById("sidebar").style.display = "none";
+
+function showHide(showOrHide, id, displayType = "block") {
+    if (showOrHide === "show") {
+        document.getElementById(id).style.display = displayType;
+    } else if (showOrHide === "hide") {
+        document.getElementById(id).style.display = "none";
     }
 }
 
+function themeChooser() {
+    document.documentElement.style.setProperty('--color-3', '#fff');
+}
 
-getMovies(API_URL_DISCOVER_MOVIES)
+getMovies(API_URL_DISCOVER_MOVIES).then(data => {
+    showMovies(data);
+});
 eventListeners();
 
 //Suggestions
